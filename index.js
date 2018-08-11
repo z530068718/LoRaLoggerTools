@@ -22,11 +22,11 @@ let mongoWhereOpt = {
 };
 let createdTime = {};
 if (program.end) {
-    createdTime.$gte = moment(program.end).unix();
+    createdTime.$lte = moment(program.end).unix();
     mongoWhereOpt.createdTime = createdTime;
 }
 if (program.start) {
-    createdTime.$lte = moment(program.start).unix();
+    createdTime.$gte = moment(program.start).unix();
     mongoWhereOpt.createdTime = createdTime;
 }
 if (program.gatewayId) {
@@ -79,7 +79,7 @@ msgModel.find(mongoWhereOpt).then(mongoResult => {
         excelObj = [];
         for (let i = 0; i < mongoDataArr.length; i++) {
             excelObj.push(mongoDataArr[i].DevAddr);
-            excelObj.push(mongoDataArr[i].GatewayId);
+            excelObj.push(mongoDataArr[i].data.gatewayId);
             excelObj.push(mongoDataArr[i].msgType);
             excelObj.push(mongoDataArr[i].createdTime);
             excelObj.push(mongoDataArr[i].data.rxpk.datr);
