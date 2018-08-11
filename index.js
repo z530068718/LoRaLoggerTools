@@ -21,33 +21,30 @@ function initMongodb(mongoConfig) {
         console.error(err);
     });
 }
-initMongodb(config.mongoose);
+initMongodb(config.database.mongodb);
 
 const fileDir = config.excel.fileDir;
 
 // 读取文件
-let originWorkSheets = null;
+let originWorkSheets = [];
 try {
     originWorkSheets = xlsx.parse(fs.readFileSync(fileDir));
 } catch (error) {
-    console.error("Read the excle File error！\n" + fileDir + error);
+    console.error('Read the excle File error！\n' + fileDir + error);
     return;
 };
 
 //从mongo中读取所需的数据
-const collectionName = config.mongo.collectonName;
-const msgModel = mongoose.model(collectionName, mongoSavedSchema);
+const collectionName = config.mongo.collectionName;
+const msgModel = mongoose.model(collectionName, mongoSavedSchema, collectionName);
 const whereOpts = {
-    gatewayId: config.mongo.gatewayId,
-    msgType: config.mongo.MONGO_SAVEDMSG_TYPE.uplink_msg,
-    createdTime: { $gte: moment(startTime).unix(), $lte: moment(endTime).unix() },
+    'data.gatewayId': config.mongo.gatewayId,
+    'msgType': config.mongo.MONGO_SAVEDMSG_TYPE.uplink_msg,
+    'createdTime': { $gte: moment(startTime).unix(), $lte: moment(endTime).unix() },
 };
-
-msgModel.find(whereOpts).then((err, mongoResult) => {
-    if (err) {
-        console.error(err);
-        return;
-    }
+console.log(whereOpts);
+msgModel.find(whereOpts).then(mongoResult => {
+    console.log('mongoResult',mongoResult);
 
     let addSheetName = config.excel.sheetName;
     let addData = [];
@@ -104,4 +101,8 @@ msgModel.find(whereOpts).then((err, mongoResult) => {
             console.error(error);
         }
     }
+
+    mongoose.disconnect();
+}).catch(err => {
+    console.error(err);
 });

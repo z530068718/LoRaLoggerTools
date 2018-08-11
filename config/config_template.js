@@ -15,7 +15,7 @@ module.exports = {
         saveDir: `${__dirname}/` + '../test.xlsx',
     },
     mongo: {
-        collectonName: '',
+        collectionName: '',
         MONGO_SAVEDMSG_TYPE = {
             uplink_joinReq: 'UPLINK_JOINREQ',
             uplink_msg: 'UPLINK_MSG',
