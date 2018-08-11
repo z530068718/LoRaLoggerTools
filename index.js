@@ -1,14 +1,44 @@
+#!/usr/bin/env node
+
 const config = require('./config');
 const xlsx = require('node-xlsx').default;
 const fs = require('fs');
 const mongoose = require('mongoose');
 const mongoSavedSchema = require('./lib/schema/MongoSavedMsg');
 const moment = require('moment');
+var program = require('commander');
 
-// 获取参数
-const arguments = process.argv.splice(2);
-const startTime = arguments[0];
-const endTime = arguments[1];
+// 获取输入参数
+program
+    .version('0.1.0', '-v, --version')
+    .option('-e, --end <n>', 'Add end time of data collection')
+    .option('-s, --start <n>', 'Add start time of data collection')
+    .option('-g, --gatewayId <n>', 'Add one gatewayId')
+    .option('-d, --devaddr <n>', 'Add one devaddr')
+    .parse(process.argv);
+
+let mongoWhereOpt = {
+    msgType: config.mongo.MONGO_SAVEDMSG_TYPE.uplink_msg,
+};
+let createdTime = {};
+if (program.end) {
+    createdTime.$gte = moment(program.end).unix();
+    mongoWhereOpt.createdTime = createdTime;
+}
+if (program.start) {
+    createdTime.$lte = moment(program.start).unix();
+    mongoWhereOpt.createdTime = createdTime;
+}
+if (program.gatewayId) {
+    mongoWhereOpt['data.gatewayId'] = program.gatewayId;
+} else {
+    mongoWhereOpt['data.gatewayId'] = config.mongo.gatewayId;
+}
+if (program.devaddr) {
+    mongoWhereOpt.DevAddr = program.devaddr;
+}
+
+console.log(mongoWhereOpt);
 
 function initMongodb(mongoConfig) {
     const url = `mongodb://${mongoConfig.host}:${mongoConfig.port}/${mongoConfig.db}`;
@@ -31,20 +61,14 @@ try {
     originWorkSheets = xlsx.parse(fs.readFileSync(fileDir));
 } catch (error) {
     console.error('Read the excle File error！\n' + fileDir + error);
-    return;
 };
 
 //从mongo中读取所需的数据
 const collectionName = config.mongo.collectionName;
 const msgModel = mongoose.model(collectionName, mongoSavedSchema, collectionName);
-const whereOpts = {
-    'data.gatewayId': config.mongo.gatewayId,
-    'msgType': config.mongo.MONGO_SAVEDMSG_TYPE.uplink_msg,
-    'createdTime': { $gte: moment(startTime).unix(), $lte: moment(endTime).unix() },
-};
-console.log(whereOpts);
-msgModel.find(whereOpts).then(mongoResult => {
-    console.log('mongoResult',mongoResult);
+
+msgModel.find(mongoWhereOpt).then(mongoResult => {
+    console.log('mongoResult', mongoResult);
 
     let addSheetName = config.excel.sheetName;
     let addData = [];
@@ -74,25 +98,40 @@ msgModel.find(whereOpts).then(mongoResult => {
         }
         return outputArr;
     }
-
     addData = converter(mongoResult);
-    // 获取指定sheet的数据，并向目标表添加数据
 
-    let updateDatas = [].concat(originWorkSheets);
-    for (var i = 0; i < originWorkSheets.length; i++) {
-        if (originWorkSheets[i]) {
-            let originSheetName = originWorkSheets[i].name;
-            if (addSheetName === originSheetName) {
-                let originSheetData = originWorkSheets[i].data;
-                updateDatas[i].data = originSheetData.concat([[]], addData);
+    // 获取指定sheet的数据，并向目标表添加数据
+    let updateData = [];
+
+    if (originWorkSheets.length === 0) {
+        let sheetObj = {};
+        sheetObj.name = addSheetName;
+        sheetObj.data = addData;
+        updateData.push(sheetObj);
+    } else {
+        updateData = [].concat(originWorkSheets);
+        let flag = true;
+        for (var i = 0; i < originWorkSheets.length; i++) {
+            if (originWorkSheets[i]) {
+                let originSheetName = originWorkSheets[i].name;
+                if (addSheetName === originSheetName) {
+                    flag = false;
+                    let originSheetData = originWorkSheets[i].data;
+                    updateData[i].data = originSheetData.concat([[]], addData);
+                }
             }
         }
+        if (flag) {
+            let sheetObj = {};
+            sheetObj.name = addSheetName;
+            sheetObj.data = addData;
+            updateData.push(sheetObj);
+        }
     }
-
-    const buffer = xlsx.build(updateDatas);
+    const buffer = xlsx.build(updateData);
 
     try {
-        fs.writeFileSync('test.xlsx', buffer, {});
+        fs.writeFileSync(fileDir, buffer, {});
         console.log('Success!');
     } catch (error) {
         if (error.code == 'EBUSY') {
